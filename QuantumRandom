@@ -1,0 +1,47 @@
+# Importing necessary Qiskit libraries
+from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+from qiskit_aer import AerSimulator
+from qiskit.visualization import plot_histogram
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Function to map one range to another
+def real_map(value, leftMin, leftMax, rightMin, rightMax):
+    leftSpan = leftMax - leftMin
+    rightSpan = rightMax - rightMin
+    valueScaled = float(value - leftMin) / float(leftSpan)
+    return rightMin + (valueScaled * rightSpan)
+
+# Quantum Random Number generator
+def QRandom(a, b, qubits=2):
+    q = QuantumRegister(qubits, 'q')
+    c = ClassicalRegister(qubits, 'c')
+    circ = QuantumCircuit(q, c)
+
+    for i in range(qubits):
+        circ.h(q[i])
+
+    circ.measure(q, c)
+
+    backend = AerSimulator()
+    job = backend.run(circ, shots=1)
+    result = job.result()
+    counts = result.get_counts(circ)
+
+    bitstring = list(counts.keys())[0]
+    decimal_value = int(bitstring, 2)
+
+    y = real_map(decimal_value, 0, 2**qubits - 1, a, b)
+    return y
+
+# Generate random numbers
+x = [QRandom(0, 100, 3) for _ in range(40)]
+
+# Plot the quantum random numbers
+plt.figure(figsize=(12, 6))
+plt.plot(x, marker='o', linestyle='-', color='b', markersize=5, linewidth=1.5)
+plt.title("Quantum Random Numbers")
+plt.xlabel("Iteration")
+plt.ylabel("Random Number")
+plt.grid(True)
+plt.show()

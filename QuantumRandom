@@ -13,29 +13,49 @@ def real_map(value, leftMin, leftMax, rightMin, rightMax):
     return rightMin + (valueScaled * rightSpan)
 
 # Quantum Random Number generator
-def QRandom(a, b, qubits=2):
-    q = QuantumRegister(qubits, 'q')
-    c = ClassicalRegister(qubits, 'c')
-    circ = QuantumCircuit(q, c)
+def QRandom(a, b, qubits=2, shots=1000, simulator=None, circ=None):
+    if simulator is None:
+        simulator = AerSimulator()
+    
+    if circ is None:
+        # Create quantum and classical registers
+        q = QuantumRegister(qubits, 'q')
+        c = ClassicalRegister(qubits, 'c')
+        # Create a quantum circuit
+        circ = QuantumCircuit(q, c)
+        
+        # Apply Hadamard gate to each qubit to create superposition
+        for i in range(qubits):
+            circ.h(q[i])
+        
+        # Measure the qubits
+        circ.measure(q, c)
 
-    for i in range(qubits):
-        circ.h(q[i])
-
-    circ.measure(q, c)
-
-    backend = AerSimulator()
-    job = backend.run(circ, shots=1)
+    # Use AerSimulator to run the circuit
+    job = simulator.run(circ, shots=shots)
     result = job.result()
     counts = result.get_counts(circ)
 
-    bitstring = list(counts.keys())[0]
-    decimal_value = int(bitstring, 2)
-
-    y = real_map(decimal_value, 0, 2**qubits - 1, a, b)
+    # Combine results from all shots to generate a random number
+    weighted_sum = sum(int(bitstring, 2) * count for bitstring, count in counts.items())
+    total_counts = sum(counts.values())
+    
+    average_value = weighted_sum / total_counts
+    y = real_map(average_value, 0, 2**qubits - 1, a, b)
+    
     return y
 
+# Create simulator and circuit once
+simulator = AerSimulator()
+q = QuantumRegister(3, 'q')
+c = ClassicalRegister(3, 'c')
+circ = QuantumCircuit(q, c)
+for i in range(3):
+    circ.h(q[i])
+circ.measure(q, c)
+
 # Generate random numbers
-x = [QRandom(0, 100, 3) for _ in range(40)]
+x = [QRandom(0, 100, 3, shots=1000, simulator=simulator, circ=circ) for _ in range(40)]
 
 # Plot the quantum random numbers
 plt.figure(figsize=(12, 6))

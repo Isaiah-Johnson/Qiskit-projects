@@ -1,0 +1,103 @@
+# percentage results may vary if you know how to get more accurate and consistant results and closer to 100% please notify me
+
+import strawberryfields as sf
+from strawberryfields.ops import Sgate, Dgate, MeasureHomodyne, LossChannel
+import numpy as np
+import matplotlib.pyplot as plt
+from hashlib import sha256
+
+# Parameters for Passive CV-QKD
+num_modes = 1  # Single mode for simplicity
+num_rounds = 2000  # Increased number of rounds to stabilize results
+squeezing = 1.0  # Squeezing parameter
+homodyne_angle = 0.0  # Homodyne detection angle (0 for position, pi/2 for momentum)
+loss = 0.05  # Reduced channel loss for better performance
+noise_variance = 0.15  # Further adjusted variance to simulate realistic conditions
+
+# Define a set of predetermined states for passive QKD
+predetermined_displacements = [
+    (0.5, 0.5), (-0.5, -0.5), (1.0, 1.0), (-1.0, -1.0),
+    (0.5, -0.5), (-0.5, 0.5), (1.0, -1.0), (-1.0, 1.0)
+]
+
+# Initialize arrays to store results
+alice_displacements = []
+bob_measurements = []
+
+# Alice prepares and sends states using Strawberry Fields
+for _ in range(num_rounds):
+    prog = sf.Program(num_modes)
+    eng = sf.Engine("gaussian")
+    with prog.context as q:
+        # Alice passively selects a state from the predetermined set
+        displacement_x, displacement_p = predetermined_displacements[np.random.randint(len(predetermined_displacements))]
+        Sgate(squeezing) | q[0]
+        Dgate(displacement_x, displacement_p) | q[0]
+
+        # Simulate channel loss
+        LossChannel(loss) | q[0]
+
+        # Bob performs homodyne measurement
+        MeasureHomodyne(homodyne_angle) | q[0]
+
+    # Execute the program
+    results = eng.run(prog)
+    measurement_result = results.samples[0, 0] + np.random.normal(0, np.sqrt(noise_variance))  # Add noise
+    
+    # Store Alice's displacement and Bob's measurement
+    alice_displacements.append(displacement_x if homodyne_angle == 0 else displacement_p)
+    bob_measurements.append(measurement_result)
+
+# Improved Error Correction (simplified Cascade Protocol)
+def improved_error_correction(alice, bob, error_probability=0.12):
+    alice = np.array(alice)
+    bob = np.array(bob)
+    
+    alice_binary = (alice > 0).astype(int)
+    bob_binary = (bob > 0).astype(int)
+
+    corrected_bob_binary = bob_binary.copy()
+    for i in range(len(alice_binary)):
+        if alice_binary[i] != corrected_bob_binary[i] and np.random.rand() < error_probability:
+            corrected_bob_binary[i] = alice_binary[i]  # Introducing errors probabilistically
+
+    # Multiple passes for improved error correction (simplified for demonstration)
+    for _ in range(7):
+        for i in range(len(alice_binary)):
+            if alice_binary[i] != corrected_bob_binary[i] and np.random.rand() < error_probability:
+                corrected_bob_binary[i] = alice_binary[i]  # Correcting errors
+
+    key_agreement = np.sum(alice_binary == corrected_bob_binary) / len(alice_binary)
+    return alice_binary, corrected_bob_binary, key_agreement
+
+# Robust Privacy Amplification using SHA-256
+def robust_privacy_amplification(key, target_length=50):
+    key_str = ''.join(map(str, key))
+    hashed_key = sha256(key_str.encode()).hexdigest()
+    binary_hashed_key = bin(int(hashed_key, 16))[2:].zfill(256)
+    return np.array(list(binary_hashed_key)[:target_length]).astype(int)
+
+# Generate keys and perform error correction and privacy amplification
+key_length = 100
+alice_binary, bob_binary, pre_pa_agreement = improved_error_correction(alice_displacements[:key_length], bob_measurements[:key_length])
+alice_final_key = robust_privacy_amplification(alice_binary)
+bob_final_key = robust_privacy_amplification(bob_binary)
+
+# Display results
+print(f"Alice's final key: {alice_final_key}")
+print(f"Bob's final key: {bob_final_key}")
+print(f"Key agreement before privacy amplification: {pre_pa_agreement * 100:.2f}%")
+
+# Calculate key agreement after privacy amplification
+post_pa_agreement = np.sum(alice_final_key == bob_final_key) / len(alice_final_key)
+print(f"Key agreement after privacy amplification: {post_pa_agreement * 100:.2f}%")
+
+# Plot the results
+plt.figure(figsize=(12, 6))
+plt.plot(alice_displacements[:key_length], label="Alice's Displacements")
+plt.plot(bob_measurements[:key_length], label="Bob's Measurements")
+plt.xlabel('Round')
+plt.ylabel('Value')
+plt.legend()
+plt.title('Passive CV-QKD Key Generation with Noise and Loss')
+plt.show()

@@ -1,0 +1,75 @@
+from alpha_vantage.timeseries import TimeSeries
+import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit.circuit.library import RealAmplitudes
+from qiskit.primitives import Estimator
+from qiskit.quantum_info import SparsePauliOp
+from qiskit.visualization import plot_histogram, circuit_drawer
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+
+# Step 1: Retrieve Data Using Alpha Vantage API
+api_key = '7KRIXESV5AI0ABOQ'  # Replace with your Alpha Vantage API key
+ts = TimeSeries(key=api_key, output_format='pandas')
+data, meta_data = ts.get_daily(symbol='IBM', outputsize='full')
+
+# Preprocess data
+data = data[['1. open', '2. high', '3. low', '4. close', '5. volume']]
+data.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+data = data.reset_index()
+data['Date'] = pd.to_datetime(data['date'])
+data.set_index('Date', inplace=True)
+
+# Step 2: Preprocessing Data for Quantum Computing
+# Normalize Data
+scaler = MinMaxScaler()
+data['Close'] = scaler.fit_transform(data[['Close']])
+
+# Prepare Data for Quantum Circuit
+n_qubits = 2
+data_points = len(data)
+steps = int(np.ceil(data_points / n_qubits))
+
+# Reshape data to fit quantum circuit
+data_quantum = data['Close'].values[:n_qubits*steps].reshape((steps, n_qubits))
+
+# Step 3: Building the Quantum Circuit
+def create_quantum_circuit(data_point):
+    circuit = QuantumCircuit(n_qubits)
+    for i in range(n_qubits):
+        circuit.rx(data_point[i] * np.pi, i)
+    return circuit
+
+circuits = [create_quantum_circuit(dp) for dp in data_quantum]
+
+# Use RealAmplitudes for ansatz
+ansatz = RealAmplitudes(n_qubits, reps=2)
+
+# Step 4: Quantum Estimation
+H = SparsePauliOp.from_list([("II", 1), ("IZ", 2), ("XI", 3)])  # Example Hamiltonian
+
+estimator = Estimator()
+
+results = []
+for circuit in circuits:
+    job = estimator.run([circuit], [H])
+    result = job.result()
+    results.append(result.values)
+
+# Process results
+print("Quantum Estimation Results:", results)
+
+# Step 5: Combining Classical and Quantum Results
+classical_results = data['Close'].values[:n_qubits*steps].reshape((steps, n_qubits))
+combined_results = np.hstack((classical_results, np.array(results).reshape(-1, 1)))
+
+# Example analysis: Moving Average
+moving_avg = np.mean(combined_results, axis=1)
+print("Moving Average:", moving_avg)
+
+# Visualization using mplfinance
+# Plot the candlestick chart with moving averages and volume
+mpf.plot(data, type='candle', mav=(10, 20), volume=True, title='IBM Daily Price', ylabel='Price', ylabel_lower='Volume')
+

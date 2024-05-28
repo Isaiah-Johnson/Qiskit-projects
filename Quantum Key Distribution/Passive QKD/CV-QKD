@@ -1,10 +1,18 @@
 # percentage results may vary if you know how to get more accurate and consistant results and closer to 100% please notify me
 
+# Ensure you have installed the required libraries
+# pip install qiskit
+# pip install strawberryfields
+# pip install matplotlib
+
+# Import necessary libraries from Qiskit and Strawberry Fields
 import strawberryfields as sf
 from strawberryfields.ops import Sgate, Dgate, MeasureHomodyne, LossChannel
 import numpy as np
 import matplotlib.pyplot as plt
 from hashlib import sha256
+from qiskit import QuantumCircuit, transpile
+from qiskit_aer import AerSimulator
 
 # Parameters for Passive CV-QKD
 num_modes = 1  # Single mode for simplicity
@@ -12,7 +20,7 @@ num_rounds = 2000  # Increased number of rounds to stabilize results
 squeezing = 1.0  # Squeezing parameter
 homodyne_angle = 0.0  # Homodyne detection angle (0 for position, pi/2 for momentum)
 loss = 0.05  # Reduced channel loss for better performance
-noise_variance = 0.15  # Further adjusted variance to simulate realistic conditions
+noise_variance = 0.15  # Adjusted variance to simulate realistic conditions
 
 # Define a set of predetermined states for passive QKD
 predetermined_displacements = [
@@ -83,14 +91,38 @@ alice_binary, bob_binary, pre_pa_agreement = improved_error_correction(alice_dis
 alice_final_key = robust_privacy_amplification(alice_binary)
 bob_final_key = robust_privacy_amplification(bob_binary)
 
+# Additional Error Correction and Privacy Amplification using Qiskit
+def qiskit_post_processing(alice_key, bob_key):
+    q = QuantumCircuit(1)
+    simulator = AerSimulator()
+
+    # Placeholder for an actual error correction circuit
+    for bit in alice_key:
+        if bit == 1:
+            q.x(0)
+        q.measure_all()
+        compiled_circuit = transpile(q, simulator)
+        result = simulator.run(compiled_circuit, shots=1).result()
+        counts = result.get_counts()
+        if counts.get('1', 0) > counts.get('0', 0):
+            corrected_bit = 1
+        else:
+            corrected_bit = 0
+
+    return corrected_bit
+
+# Apply additional Qiskit post-processing
+alice_final_key_qiskit = qiskit_post_processing(alice_final_key, bob_final_key)
+bob_final_key_qiskit = qiskit_post_processing(bob_final_key, alice_final_key)
+
 # Display results
-print(f"Alice's final key: {alice_final_key}")
-print(f"Bob's final key: {bob_final_key}")
+print(f"Alice's final key: {alice_final_key_qiskit}")
+print(f"Bob's final key: {bob_final_key_qiskit}")
 print(f"Key agreement before privacy amplification: {pre_pa_agreement * 100:.2f}%")
 
-# Calculate key agreement after privacy amplification
-post_pa_agreement = np.sum(alice_final_key == bob_final_key) / len(alice_final_key)
-print(f"Key agreement after privacy amplification: {post_pa_agreement * 100:.2f}%")
+# Calculate key agreement after Qiskit post-processing
+post_pa_agreement_qiskit = np.sum(alice_final_key_qiskit == bob_final_key_qiskit) / len(alice_final_key_qiskit)
+print(f"Key agreement after Qiskit post-processing: {post_pa_agreement_qiskit * 100:.2f}%")
 
 # Plot the results
 plt.figure(figsize=(12, 6))

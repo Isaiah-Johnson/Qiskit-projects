@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import mplfinance as mpf
 
 # Step 1: Retrieve Data Using Alpha Vantage API
-api_key = '293WDP0NIGQ8MY38'  # Replace with your Alpha Vantage API key
+api_key = 'API_Key'  # Replace with your Alpha Vantage API key
 ts = TimeSeries(key=api_key, output_format='pandas')
 
 # List of company symbols
